@@ -130,6 +130,24 @@ def render_market(r):
          "Change": money, "Growth": lambda v: f"{v:.2f}x"},
         f"Markets growing slower than the company's {m['company_multiple']:.1f}x, or shrinking",
     )
+    check = r["decline_check"].rename(columns={
+        "TopCustomer": "Largest 1997 order from", "TopOrder": "Order size",
+        "ChangeExTop": "Change without it", "Prior6": "May-Oct 1997",
+        "Last6": "Nov 1997-Apr 1998"})
+    table += table_html(
+        check,
+        {"Country": None, "Largest 1997 order from": None, "Order size": money,
+         "Change without it": money, "May-Oct 1997": money,
+         "Nov 1997-Apr 1998": money, "Verdict": None},
+        "Is the decline real? Order-level check of the shrinking markets",
+    )
+    verdicts = " ".join(
+        f"<b>{c['Country']}</b>: {html.escape(c['Verdict'])}." for c in m["decline_check"]
+    )
+    broad = [c["Country"] for c in m["decline_check"] if c["Verdict"].startswith("Broad")]
+    lost = [c for c in m["decline_check"] if c["Verdict"].startswith("One lost")]
+    soft = [c["Country"] for c in m["decline_check"] if c["Verdict"].startswith("Soft")]
+    oneoff = [c["Country"] for c in m["decline_check"] if c["Verdict"].startswith("No real")]
     return section(
         1, "markets",
         "Which customer markets are growing or shrinking, and where should sales attention go?",
@@ -142,21 +160,32 @@ def render_market(r):
         f"{m['last_date']:%B %d, %Y}, so comparing calendar years would be unfair. I compare "
         "the same window, <b>January 1 to April 30</b>, in 1997 and 1998. Countries are "
         "ranked by dollar change, not percent, so tiny bases (Spain grew from $338) "
-        "do not dominate.</p>",
+        "do not dominate. Small markets have only a few orders per window, so each "
+        "shrinking market gets an order-level check: redo the comparison without its "
+        "largest Jan-Apr 1997 order, compare the last six full months with the six "
+        "before, and see whether that customer is still ordering.</p>",
         fig_html(r["figures"][0]) + fig_html(r["figures"][1]) + table,
         f"<p>Jan-Apr revenue grew from {money(m['total_1997'])} to {money(m['total_1998'])} "
         f"(<b>{m['company_multiple']:.1f}x</b>). {', '.join(m['top3'])} supplied "
-        f"{pct(m['top3_share_of_growth'])} of the dollar growth. Four markets shrank "
-        f"against this tide: {declining}, a combined loss of {money(m['declining_loss'])}. "
-        f"Another five ({', '.join(m['lagging'])}) grew but slower than the company; "
-        "France was nearly flat.</p>",
+        f"{pct(m['top3_share_of_growth'])} of the dollar growth. {len(m['declining'])} "
+        f"markets show lower Jan-Apr revenue: {declining}. The order-level check shows "
+        f"<b>{'none' if not broad else ', '.join(broad)} of them "
+        f"{'is' if len(broad) == 1 else 'are'} a broad decline</b>; "
+        + ("in every case the drop disappears once the single largest 1997 order is "
+           "removed. " if not broad else "")
+        + f"{verdicts} Another five ({', '.join(m['lagging'])}) grew, but slower "
+        "than the company; France was nearly flat.</p>",
         "<p>Keep investing in the USA, Germany and Brazil, where growth is concentrated. "
-        "Treat Denmark, Canada, Mexico and Finland as a <b>retention problem, not a "
-        "demand problem</b>: the rest of the business doubled, so these markets lost "
-        "share. A sales manager should review the accounts in those countries first "
-        "(Question 2 shows a top-10 Canadian customer that has gone silent). France is "
-        "a large market with flat sales, so it is the best place to test a growth "
-        "push.</p>",
+        "Do not treat the shrinking markets as one problem. "
+        + (f"{', '.join(oneoff)}: no action beyond normal account care; the dip is one "
+           "large order not repeated. " if oneoff else "")
+        + (f"{', '.join(c['Country'] for c in lost)}: a <b>win-back call</b> to "
+           f"{', '.join(c['TopCustomer'] for c in lost)} (see Question 2). " if lost else "")
+        + (f"{', '.join(soft)}: small markets that are softening; check in with the "
+           "main customers, but this is not yet a loss. " if soft else "")
+        + "France is a large market with flat sales, so it is the best place to test a "
+        "growth push. Lesson for the dashboard: in small markets, a year-over-year drop "
+        "should always be checked order by order before anyone acts on it.</p>",
     )
 
 
@@ -371,8 +400,9 @@ def render_page(market, conc, disc, deliv, lines):
   {start:%b %Y} to {end:%b %Y}. Four things a manager should act on:</p>
   <ol>
     <li><a href="#markets">Growth is strong but uneven.</a> Jan-Apr revenue grew
-    {mm['company_multiple']:.1f}x year over year, yet Denmark, Canada, Mexico and Finland
-    shrank. Those markets are losing accounts, not demand.</li>
+    {mm['company_multiple']:.1f}x year over year. Four small markets dipped, but an
+    order-level check shows no broad decline: Denmark's dip is one large 1997 order, Canada
+    lost one account, and Mexico and Finland are softening.</li>
     <li><a href="#concentration">Three customers bring in {pct(cm['top3_share'])} of revenue</a>,
     and two top-25 accounts have not ordered in 90+ days.</li>
     <li><a href="#discounts">Discounts above 5% buy no extra volume.</a> Capping them could

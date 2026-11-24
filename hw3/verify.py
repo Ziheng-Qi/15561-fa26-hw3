@@ -99,6 +99,20 @@ def run_checks(results, tables=None):
     check("Total discount cost", results["discounts"]["metrics"]["total_discount_cost"],
           disc_sql, failures)
 
+    dk = next(c for c in results["market"]["metrics"]["decline_check"]
+              if c["Country"] == "Denmark")
+    dk_sql = scalar(conn, f"""
+        WITH o AS (SELECT od.OrderID, strftime('%Y', o.OrderDate) AS y, SUM({rev}) AS r
+                   FROM Orders_Details od JOIN Orders o USING (OrderID)
+                   JOIN Customers c USING (CustomerID)
+                   WHERE c.Country = 'Denmark' AND strftime('%m', o.OrderDate) <= '04'
+                     AND strftime('%Y', o.OrderDate) IN ('1997', '1998')
+                   GROUP BY od.OrderID)
+        SELECT SUM(CASE WHEN y = '1998' THEN r ELSE -r END)
+               + (SELECT MAX(r) FROM o WHERE y = '1997') FROM o""")
+    check("Denmark Jan-Apr change excl. largest 1997 order", dk["ChangeExTop"],
+          dk_sql, failures)
+
     d = results["delivery"]["metrics"]
     late_sql = scalar(conn, """
         SELECT AVG(ShippedDate > RequiredDate) FROM Orders

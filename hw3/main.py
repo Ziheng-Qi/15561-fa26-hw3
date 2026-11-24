@@ -19,6 +19,7 @@ def export_tables(results):
     exports = {
         "q1_monthly_revenue.csv": results["market"]["monthly"],
         "q1_country_jan_apr.csv": results["market"]["by_country"],
+        "q1_decline_check.csv": results["market"]["decline_check"],
         "q2_customer_revenue.csv": results["concentration"]["by_customer"],
         "q3_discount_tiers.csv": results["discounts"]["by_tier"],
         "q4_late_by_window.csv": results["delivery"]["by_window"],

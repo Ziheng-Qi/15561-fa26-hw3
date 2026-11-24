@@ -16,6 +16,9 @@ FONT = dict(family="Inter, Helvetica, Arial, sans-serif", size=13, color="#1f293
 YOY_START_MONTH = 1
 YOY_END_MONTH = 4
 RECENCY_THRESHOLD_DAYS = 90
+# Six full months before the data ends vs the six months before that.
+ROLLING_PRIOR = (pd.Timestamp("1997-05-01"), pd.Timestamp("1997-11-01"))
+ROLLING_LAST = (pd.Timestamp("1997-11-01"), pd.Timestamp("1998-05-01"))
 STANDARD_TIERS = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25]
 BENCHMARK_TIER = 0.05
 
@@ -124,10 +127,12 @@ def market_growth(lines):
            height=620)
 
     declining = by_country[by_country["Change"] < 0]
+    decline_check = _decline_check(lines, declining["Country"].tolist())
     lagging = by_country[(by_country["Change"] >= 0) & (~by_country["BeatsCompany"])
                          & by_country["Rev1997"].gt(0)]
     top3 = by_country.head(3)
     metrics = {
+        "decline_check": decline_check.to_dict("records"),
         "total_1997": total_1997,
         "total_1998": total_1998,
         "company_multiple": company_multiple,
@@ -138,8 +143,64 @@ def market_growth(lines):
         "top3_share_of_growth": top3["Change"].sum() / by_country["Change"].sum(),
         "last_date": last_date,
     }
-    return {"monthly": monthly, "by_country": by_country, "metrics": metrics,
+    return {"monthly": monthly, "by_country": by_country,
+            "decline_check": decline_check, "metrics": metrics,
             "figures": [fig_trend, fig_country]}
+
+
+def _decline_check(lines, countries):
+    """Test whether each country's Jan-Apr decline is a real trend.
+
+    For each country, the largest single Jan-Apr 1997 order is removed
+    and the comparison is redone, and the last six full months are
+    compared with the six before. A verdict combines both checks with
+    whether the customer behind that order has gone quiet.
+
+    Args:
+        lines (pandas.DataFrame): Order lines from
+            ``build_order_lines``.
+        countries (list[str]): Customer countries to check.
+
+    Returns:
+        pandas.DataFrame: One row per country with the largest 1997
+        order (``TopCustomer``, ``TopOrder``), ``ChangeExTop`` (USD),
+        ``Prior6``/``Last6`` revenue (USD), ``Last6Change`` (fraction)
+        and ``Verdict``.
+    """
+    last_date = lines["OrderDate"].max()
+    window = lines[lines["OrderDate"].dt.month.between(YOY_START_MONTH, YOY_END_MONTH)]
+    orders = (
+        window.groupby(["Country", "CompanyName", "OrderID", "OrderDate"])["Revenue"]
+        .sum().reset_index()
+    )
+    last_order = lines.groupby("CompanyName")["OrderDate"].max()
+    rows = []
+    for country in countries:
+        o = orders[orders["Country"] == country]
+        y97 = o[o["OrderDate"].dt.year == 1997]
+        y98 = o[o["OrderDate"].dt.year == 1998]
+        top = y97.loc[y97["Revenue"].idxmax()]
+        change_ex_top = y98["Revenue"].sum() - (y97["Revenue"].sum() - top["Revenue"])
+        c = lines[lines["Country"] == country]
+        prior6 = c.loc[c["OrderDate"].between(*ROLLING_PRIOR, inclusive="left"), "Revenue"].sum()
+        last6 = c.loc[c["OrderDate"].between(*ROLLING_LAST, inclusive="left"), "Revenue"].sum()
+        quiet_days = (last_date - last_order[top["CompanyName"]]).days
+        if change_ex_top < 0:
+            verdict = "Broad decline across accounts"
+        elif quiet_days > RECENCY_THRESHOLD_DAYS:
+            verdict = f"One lost account ({top['CompanyName']}); rest of market growing"
+        elif last6 >= prior6:
+            verdict = "No real decline: driven by one large 1997 order"
+        else:
+            verdict = (f"Softening (last 6 months {last6 / prior6 - 1:.0%}), "
+                       "no account lost")
+        rows.append({
+            "Country": country, "TopCustomer": top["CompanyName"],
+            "TopOrder": top["Revenue"], "ChangeExTop": change_ex_top,
+            "Prior6": prior6, "Last6": last6, "Last6Change": last6 / prior6 - 1,
+            "TopCustomerQuietDays": quiet_days, "Verdict": verdict,
+        })
+    return pd.DataFrame(rows)
 
 
 def customer_concentration(lines, customers):

@@ -1,0 +1,5 @@
+Country,TopCustomer,TopOrder,ChangeExTop,Prior6,Last6,Last6Change,TopCustomerQuietDays,Verdict
+Finland,Wartian Herkku,2684.0,809.1999999999998,6739.05,4823.4425,-0.28425482820278825,21,"Softening (last 6 months -28%), no account lost"
+Mexico,Tortuga Restaurante,4150.05,1070.4375000000005,7064.764999999999,4204.9,-0.40480681239928007,2,"Softening (last 6 months -40%), no account lost"
+Canada,Mère Paillarde,9194.560000000001,5509.4,12969.349999999999,14643.55,0.12908896745018072,188,One lost account (Mère Paillarde); rest of market growing
+Denmark,Simons bistro,11188.4,1766.0,6123.049999999999,9647.0875,0.575536293187219,0,No real decline: driven by one large 1997 order

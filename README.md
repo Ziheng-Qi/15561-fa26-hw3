@@ -27,7 +27,7 @@ The single command `python -m hw3.main`:
 
 1. Loads `data/northwind.xlsx`, the unmodified course workbook.
 2. Runs the four analyses in `hw3/questions.py`.
-3. **Cross-checks** the headline numbers by recomputing them in SQL (SQLite in memory)
+3. **Cross-checks** the 8 headline numbers by recomputing them in SQL (SQLite in memory)
    in `hw3/verify.py`. The run stops if any check fails. Expected output:
    ```
    [OK] Total net revenue: pandas=1,265,793.0395 sql=1,265,793.0395
@@ -35,6 +35,7 @@ The single command `python -m hw3.main`:
    [OK] Jan-Apr 1998 revenue: pandas=422,290.2355 sql=422,290.2355
    [OK] Top-3 customer share: pandas=0.2524 sql=0.2524
    [OK] Total discount cost: pandas=88,665.5505 sql=88,665.5505
+   [OK] Denmark Jan-Apr change excl. largest 1997 order: pandas=1,766.0000 sql=1,766.0000
    [OK] Late rate, 14-day orders: pandas=0.1765 sql=0.1765
    [OK] Late order count: pandas=37.0000 sql=37.0000
    All cross-checks passed.
@@ -72,6 +73,10 @@ docs/index.html         the published webpage (GitHub Pages source)
   Jan 1 to Apr 30 in both years, because calendar 1998 is incomplete.
 - **Late** = shipped after `RequiredDate`. The 21 orders not yet shipped by the end of the
   data are excluded; none were already past due.
+- **Is a market decline real?** Small markets have few orders per window, so every
+  shrinking market is re-checked without its largest Jan-Apr 1997 order, on a rolling
+  6-month basis (Nov 1997-Apr 1998 vs May-Oct 1997), and by whether that customer is
+  still ordering (`outputs/q1_decline_check.csv`).
 - **Quiet account** = no order in the 90 days before the last date in the data.
   The median gap between a customer's orders is 35 days.
 - The workbook's `Product` sheet has extra helper columns (`Cheap`, `NewPrice`, …) from
